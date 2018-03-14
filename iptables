@@ -6,7 +6,7 @@
 # Sysadmins who are too lazy to set up a config themselves
 #
 # Even if you know your way around Iptables, please consider using this
-# as a baseline, while and change up the settings to your pleasure
+# as a baseline and change up the settings to your pleasure
 #
 # One thing I do recommend is to remove the settings for the internal network
 # and replace them with your actual network settings
@@ -55,6 +55,7 @@
 
 # Allow ICMP protocol (IE: ping)
 -A INPUT -p icmp -j ACCEPT
+-A OUTPUT -p icmp -j ACCEPT
 
 # Log all attempts to access other ports
 -A INPUT -m limit --limit 30/min -j LOG --log-prefix="[IPTABLES IN]"
