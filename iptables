@@ -57,12 +57,17 @@
 -A INPUT -p icmp -j ACCEPT
 -A OUTPUT -p icmp -j ACCEPT
 
+# Allow NTP traffic outwards
+-A OUT -p udp --sport 123 --dport 123 -j ACCEPT
+
 # Log all attempts to access other ports
 -A INPUT -m limit --limit 30/min -j LOG --log-prefix="[IPTABLES IN]"
 -A OUTPUT -m limit --limit 30/min -j LOG --log-prefix="[IPTABLES OUT]"
 
 # Allow internal networks
-# If you're not in the internal network, add your IP here
+# Depending on your situation. This may not be enough to stop attacks.
+# If you rent out a subnet, remove all of this and replace it with your subnet
+# If you're not in the internal network, add your (static) IP here
 -A ALLOWED_IN -s 192.168.0.0/16 -j ACCEPT
 -A ALLOWED_IN -s 172.16.0.0/12 -j ACCEPT
 -A ALLOWED_IN -s 10.0.0.0/8 -j ACCEPT
