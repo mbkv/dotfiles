@@ -1,0 +1,62 @@
+#
+# This is a good baseline for iptables.
+#
+# This text has been released to help mitigate attacks like the recent
+# Memcached DDoS. This is meant to provide sensible defaults for
+# Sysadmins who are too lazy to set up a config themselves
+#
+# Even if you know your way around Iptables, please consider using this
+# as a baseline, while and change up the settings to your pleasure
+#
+# One thing I do recommend is to remove the internal network settings and
+# replace them your actual network settings
+# 
+# This text has been placed under The Unlicense and is placed in
+# the public domain. The full license can be seen here
+# https://unlicense.org/
+#
+# Author: Michael Bitokhov
+# License: The Unlicense
+#
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+:ALLOWED_IN - [0:0]
+:ALLOWED_OUT - [0:0]
+
+# Allow established connections
+-A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+# HTTP/HTTPS traffic
+-A INPUT -p tcp -m tcp --dport 80 -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 443 -j ACCEPT
+-A OUTPUT -p tcp -m tcp --sport 80 -j ACCEPT
+-A OUTPUT -p tcp -m tcp --sport 443 -j ACCEPT
+
+# Allow specific networks/ips
+-A INPUT -j ALLOWED_IN
+-A OUTPUT -j ALLOWED_OUT
+
+# Allow Loopback
+-A INPUT -i lo -j ACCEPT
+-A OUTPUT -o lo -j ACCEPT
+
+# Allow ICMP protocol (IE: ping)
+-A INPUT -p icmp -j ACCEPT
+
+# Log all attempts to access other ports
+-A INPUT -m limit --limit 30/min -j LOG --log-prefix="[IPTABLES IN]"
+-A OUTPUT -m limit --limit 30/min -j LOG --log-prefix="[IPTABLES OUT]"
+
+# Allow internal networks
+# If you're not in the internal network, add your IP here
+-A ALLOWED_IN -s 192.168.0.0/16 -j ACCEPT
+-A ALLOWED_IN -s 172.16.0.0/12 -j ACCEPT
+-A ALLOWED_IN -s 10.0.0.0/8 -j ACCEPT
+-A ALLOWED_OUT -d 192.168.0.0/16 -j ACCEPT
+-A ALLOWED_OUT -d 172.16.0.0/12 -j ACCEPT
+-A ALLOWED_OUT -d 10.0.0.0/8 -j ACCEPT
+COMMIT
+
+
