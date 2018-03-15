@@ -58,7 +58,7 @@
 -A OUTPUT -p icmp -j ACCEPT
 
 # Allow NTP traffic outwards
--A OUT -p udp --sport 123 --dport 123 -j ACCEPT
+-A OUTPUT -p udp --sport 123 --dport 123 -j ACCEPT
 
 # Log all attempts to access other ports
 -A INPUT -m limit --limit 30/min -j LOG --log-prefix="[IPTABLES IN]"
