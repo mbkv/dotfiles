@@ -33,24 +33,24 @@
 :INPUT DROP [0:0]
 :FORWARD DROP [0:0]
 :OUTPUT ACCEPT [0:0]
-:ALLOWED_IN - [0:0]
-:ALLOWED_OUT - [0:0]
+:ALLOWED_PORTS_IN - [0:0]
+:ALLOWED_PORTS_OUT - [0:0]
+:ALLOWED_IPS_IN - [0:0]
+:ALLOWED_IPS_OUT - [0:0]
 
 # Allow established connections
 -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
 
-# HTTP/HTTPS traffic
--A INPUT -p tcp -m tcp --dport 80 -j ACCEPT
--A INPUT -p tcp -m tcp --dport 443 -j ACCEPT
--A OUTPUT -p tcp -m tcp --sport 80 -j ACCEPT
--A OUTPUT -p tcp -m tcp --sport 443 -j ACCEPT
+# Allow the allowed ports (See below for more details)
+-A INPUT  -j ALLOWED_PORTS_IN
+-A OUTPUT -j ALLOWED_PORTS_OUT
 
-# Allow specific networks/ips
--A INPUT -j ALLOWED_IN
--A OUTPUT -j ALLOWED_OUT
+# Allow the allowed ips (See below for more details)
+-A INPUT  -j ALLOWED_IPS_IN
+-A OUTPUT -j ALLOWED_IPS_OUT
 
 # Allow Loopback
--A INPUT -i lo -j ACCEPT
+-A INPUT  -i lo -j ACCEPT
 -A OUTPUT -o lo -j ACCEPT
 
 # Allow ICMP protocol (IE: ping)
@@ -58,22 +58,73 @@
 -A OUTPUT -p icmp -j ACCEPT
 
 # Allow NTP traffic outwards
--A OUTPUT -p udp --sport 123 --dport 123 -j ACCEPT
+-A OUTPUT -p udp -m udp --sport ntp --dport ntp -j ACCEPT
+
+# DNS queries
+-A OUTPUT -p tcp -m tcp --dport domain -j ACCEPT
 
 # Log all attempts to access other ports
 -A INPUT -m limit --limit 30/min -j LOG --log-prefix="[IPTABLES IN]"
 -A OUTPUT -m limit --limit 30/min -j LOG --log-prefix="[IPTABLES OUT]"
 
-# Allow internal networks
+# HTTP/HTTPS traffic
+-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport http  -j ACCEPT
+-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport https -j ACCEPT
+-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport http  -j ACCEPT
+-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport https -j ACCEPT
+
+## Mail imap/imaps
+#-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport imap  -j ACCEPT
+#-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport imaps -j ACCEPT
+#-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport imap  -j ACCEPT
+#-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport imaps -j ACCEPT
+#
+## Mail pop3/pop3s
+#-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport pop3  -j ACCEPT
+#-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport pop3s -j ACCEPT
+#-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport pop3  -j ACCEPT
+#-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport pop3s -j ACCEPT
+#
+## Mail smtp/smtps
+#-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport smtp  -j ACCEPT
+#-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport smtps -j ACCEPT
+#-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport smtp  -j ACCEPT
+#-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport smtps -j ACCEPT
+
+## ftp/ftps
+#-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport ftp  -j ACCEPT
+#-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport ftps -j ACCEPT
+#-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport ftp  -j ACCEPT
+#-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport ftps -j ACCEPT
+
+## ftp-data/ftps-data
+#-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport ftp-data  -j ACCEPT
+#-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport ftps-data -j ACCEPT
+#-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport ftp-data  -j ACCEPT
+#-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport ftps-data -j ACCEPT
+
+# SSH
+# Remove this if you use a static IP
+# This is dangerous to keep open, so you might want to download fail2ban
+# if you're like me and don't have a static ip
+-A ALLOWED_PORTS_IN  -p tcp -m tcp --dport ssh -j ACCEPT
+-A ALLOWED_PORTS_OUT -p tcp -m tcp --sport ssh -j ACCEPT
+
+## Place your static ips here
+#-A ALLOWED_IPS_IN  -s x.x.x.x       -j ACCEPT
+#-A ALLOWED_IPS_OUT -s x.x.x.x       -j ACCEPT
+
+# Internal network
 # Depending on your situation. This may not be enough to stop attacks.
 # If you rent out a subnet, remove all of this and replace it with your subnet
-# If you're not in the internal network, add your (static) IP here
--A ALLOWED_IN -s 192.168.0.0/16 -j ACCEPT
--A ALLOWED_IN -s 172.16.0.0/12 -j ACCEPT
--A ALLOWED_IN -s 10.0.0.0/8 -j ACCEPT
--A ALLOWED_OUT -d 192.168.0.0/16 -j ACCEPT
--A ALLOWED_OUT -d 172.16.0.0/12 -j ACCEPT
--A ALLOWED_OUT -d 10.0.0.0/8 -j ACCEPT
+# and your provider's internal ips. IE: if you use a smtp relay
+-A ALLOWED_IPS_IN  -s 192.168.0.0/16 -j ACCEPT
+-A ALLOWED_IPS_IN  -s 172.16.0.0/12  -j ACCEPT
+-A ALLOWED_IPS_IN  -s 10.0.0.0/8     -j ACCEPT
+-A ALLOWED_IPS_OUT -s 192.168.0.0/16 -j ACCEPT
+-A ALLOWED_IPS_OUT -s 172.16.0.0/12  -j ACCEPT
+-A ALLOWED_IPS_OUT -s 10.0.0.0/8     -j ACCEPT
+
 COMMIT
 
 
