@@ -61,6 +61,7 @@
 -A OUTPUT -p udp -m udp --sport ntp --dport ntp -j ACCEPT
 
 # DNS queries
+-A OUTPUT -p udp -m udp --dport domain -j ACCEPT
 -A OUTPUT -p tcp -m tcp --dport domain -j ACCEPT
 
 # Log all attempts to access other ports
