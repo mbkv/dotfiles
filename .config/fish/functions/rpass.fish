@@ -3,6 +3,6 @@ function rpass -a length -d "Output some random base64 password"
         set length 24
     end
 
-    echo (head -c $length /dev/urandom | base64 -w 0)
+    echo (head -c $length /dev/urandom | base64 -w 0 | sed 's/[\/=+]//g')
 end
 
