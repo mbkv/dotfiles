@@ -60,6 +60,7 @@ if [ $CONFIG == 1 ]; then
   fi
 
   cp -R $DIR/.config/* $XDK_CONFIG_HOME
+  cp $DIR/.vimrc ~/
 fi
 
 if [ $IPTABLES == 1 ]; then
