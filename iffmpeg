@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+
+import argparse
+import shlex
+import subprocess
+import sys
+import random
+import string
+from tempfile import NamedTemporaryFile
+from os import path
+from typing import Optional, List
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class TimeRange:
+    start: Optional[str]
+    end: Optional[str]
+
+
+@dataclass(frozen=True)
+class Args:
+    ranges: List[TimeRange]
+    preset: Optional[str]
+    codec: Optional[str]
+    crf: Optional[str]
+    bitrateVideo: Optional[str]
+    bitrateAudio: Optional[str]
+    file_type: Optional[str]
+    resizeW: Optional[str]
+    resizeH: Optional[str]
+    fps: Optional[str]
+
+    disableAudio: bool
+    reverse: bool
+
+    video: str
+
+    @property
+    def resize(self):
+        if self.resizeW:
+            return f"{self.resizeW}:-1"
+        if self.resizeH:
+            return f"-1:{self.resizeH}"
+
+
+def args():
+    formatter = lambda prog: argparse.HelpFormatter(prog, max_help_position=40)
+    parser = argparse.ArgumentParser(formatter_class=formatter)
+    parser.add_argument("--ranges", dest="ranges", metavar="start-end", nargs="*", help="time ranges")
+    parser.add_argument("--preset", dest="preset", metavar="preset", help="Constant Rate Factor")
+    parser.add_argument("--codec", dest="codec", metavar="codec", help="Codec")
+    parser.add_argument("-crf", dest="crf", metavar="crf", help="Constant Rate Factor")
+    parser.add_argument("-bv", dest="bitrateVideo", metavar="rate", help="Video Bitrate")
+    parser.add_argument("-ba", dest="bitrateAudio", metavar="rate", help="Audio Bitrate")
+    parser.add_argument("-an", dest="disableAudio", action="store_true", help="Remove audio")
+    parser.add_argument("-f", "--file_type", dest="file_type", metavar="type", help="Output file type")
+    parser.add_argument("--reverse", dest="reverse", action="store_true", help="Reverse video")
+    parser.add_argument("--width", dest="resizeW", metavar="width", help="Resize video by width (resizes height dynamically)")
+    parser.add_argument("--height", dest="resizeH", metavar="height", help="Resize video by height (resizes width dynamically)")
+    parser.add_argument("--fps", dest="fps", metavar="fps", type=int, help="FPS of output video")
+    parser.add_argument("video")
+
+    parsed = parser.parse_args()
+
+    if parsed.ranges and len(parsed.ranges):
+        ranges = [TimeRange(*time_range.split('-')) for time_range in parsed.ranges]
+    else:
+        ranges = None
+
+    del parsed.ranges
+
+    return Args(**vars(parsed), ranges=ranges)
+
+
+class Command:
+    def __init__(self, arguments: Args):
+        q = lambda x: shlex.quote(str(x))
+        self.args = arguments
+        self.video = arguments.video
+        self.between: List[str] = []
+        self.before: List[str] = ["-y"]
+        self.pass_int: List[int] = -1
+        self.pass_args: List[str] = []
+        self.pass_logfile = NamedTemporaryFile()
+        self.range_args: List[str] = []
+        self.index = 1
+
+        if arguments.codec:
+            self.between.extend(['-c:v', arguments.codec])
+        if arguments.preset:
+            self.between.extend(['-preset', arguments.preset])
+        if arguments.crf:
+            self.between.extend(['-crf', arguments.crf])
+        if arguments.bitrateVideo:
+            self.between.extend(["-b:v", q(arguments.bitrateVideo)])
+        if arguments.bitrateAudio:
+            self.between.extend(["-b:a", q(arguments.bitrateAudio)])
+        if arguments.disableAudio:
+            self.between.append("-an")
+
+        vf: List[str] = []
+        if arguments.reverse:
+            vf.append("reverse")
+        if arguments.resize:
+            vf.append(f"scale={q(arguments.resize)}")
+        if arguments.fps:
+            vf.append(f"fps={q(arguments.fps)}")
+        if vf:
+            self.between.extend(['-vf', ",".join(vf)])
+
+        if arguments.file_type:
+            self.file_type = q(arguments.file_type)
+        else:
+            self.file_type = q(path.splitext(arguments.video)[1][1:])
+        self.between.extend(['-f', self.file_type])
+
+        self.video_name = path.splitext(arguments.video)[0]
+
+    def __del__(self):
+        self.pass_logfile.close()
+
+    def set_pass(self, p: int):
+        if p == 0:
+            self.pass_int = p
+            self.pass_args = []
+        else:
+            self.pass_int = p
+            self.pass_args = ['-pass', str(p), '-strict', '2', '-passlogfile', self.pass_logfile.name]
+
+            if p == 1 and '-an' not in self.between:
+                self.pass_args.append('-an')
+
+        return self
+
+    def set_range(self, range: TimeRange):
+        args = []
+        if range.start:
+            args.append('-ss')
+            args.append(range.start)
+        if range.end:
+            args.append('-to')
+            args.append(range.end)
+        self.range_args = args
+
+    @property
+    def command(self):
+        before = self.before + self.range_args
+        between = self.between + self.pass_args
+        output_file = ''
+
+        if self.pass_int == 1:
+            output_file = '/dev/null'
+        else:
+            rand_id = "".join(random.choices(string.ascii_letters + string.digits, k=4))
+            output_file = f"{self.video_name}.{self.index:03}.s{rand_id}.{self.file_type}"
+            self.index += 1
+
+        return ["ffmpeg", *before, '-i', self.video, *between, output_file]
+
+
+if sys.stdout.isatty():
+    debug = lambda cmd: print(" ".join(cmd), file=sys.stderr)
+else:
+    debug = lambda cmd: None
+
+
+def run(c: Command):
+    if c.args.bitrateVideo:
+        cmd = c.set_pass(1).command
+        debug(cmd)
+        subprocess.run(cmd)
+
+        cmd = c.set_pass(2).command
+        debug(cmd)
+
+        subprocess.run(cmd)
+    else:
+        cmd = c.set_pass(0).command
+        debug(cmd)
+        subprocess.run(cmd)
+
+
+def main():
+    parsed = args()
+    c = Command(parsed)
+
+    if parsed.ranges and len(parsed.ranges):
+        for time_range in parsed.ranges:
+            c.set_range(time_range)
+            run(c)
+    else:
+        run(c)
+
+
+if __name__ == "__main__":
+    main()
+
